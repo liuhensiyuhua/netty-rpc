@@ -2,6 +2,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.zhh</groupId>
   <artifactId>rpc</artifactId>
+  <packaging>jar</packaging>
   <version>0.0.1-SNAPSHOT</version>
   <dependencies>
    <dependency>
@@ -9,7 +10,12 @@
      <artifactId>netty</artifactId>
      <version>4.0.0.Alpha1-SNAPSHOT</version>
    </dependency>
-
+   
+   <dependency>
+      <groupId>com.caucho</groupId>
+      <artifactId>hessian</artifactId>
+      <version>4.0.7</version>
+   </dependency>
    <dependency>
      <groupId>junit</groupId>
      <artifactId>junit</artifactId>

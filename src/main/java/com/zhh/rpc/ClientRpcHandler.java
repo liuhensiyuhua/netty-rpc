@@ -1,15 +1,14 @@
 package com.zhh.rpc;
 
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingDeque;
-
 import io.netty.channel.ChannelEvent;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelState;
 import io.netty.channel.ChannelStateEvent;
 import io.netty.channel.MessageEvent;
 import io.netty.channel.SimpleChannelHandler;
-import io.netty.channel.WriteCompletionEvent;
+
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingDeque;
 
 public class ClientRpcHandler extends SimpleChannelHandler {
 

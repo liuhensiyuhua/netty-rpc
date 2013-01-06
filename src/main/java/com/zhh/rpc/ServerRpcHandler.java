@@ -1,6 +1,7 @@
 package com.zhh.rpc;
 
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ExceptionEvent;
 import io.netty.channel.MessageEvent;
 import io.netty.channel.SimpleChannelHandler;
 
@@ -33,6 +34,15 @@ public class ServerRpcHandler extends SimpleChannelHandler{
 		e.getChannel().write(response);
 		
 	}
+
+	@Override
+	public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e)
+			throws Exception {
+		
+		System.out.println(e.getCause());
+	}
+	
+	
 
 	
 }
