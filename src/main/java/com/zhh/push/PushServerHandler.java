@@ -1,4 +1,4 @@
-package com.zhh.comet;
+package com.zhh.push;
 
 import static io.netty.handler.codec.http.HttpHeaders.isKeepAlive;
 import static io.netty.handler.codec.http.HttpHeaders.setContentLength;
@@ -19,7 +19,6 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelFutureProgressListener;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelStateEvent;
 import io.netty.channel.DefaultFileRegion;
 import io.netty.channel.ExceptionEvent;
 import io.netty.channel.FileRegion;
@@ -28,7 +27,6 @@ import io.netty.channel.SimpleChannelUpstreamHandler;
 import io.netty.example.http.file.HttpStaticFileServerHandler;
 import io.netty.handler.codec.frame.TooLongFrameException;
 import io.netty.handler.codec.http.DefaultHttpChunk;
-import io.netty.handler.codec.http.DefaultHttpChunkTrailer;
 import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.HttpChunk;
 import io.netty.handler.codec.http.HttpHeaders;
@@ -46,6 +44,7 @@ import java.io.FileNotFoundException;
 import java.io.RandomAccessFile;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
+import java.nio.charset.Charset;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
@@ -54,13 +53,17 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 
-public class CometServerHandler  extends SimpleChannelUpstreamHandler {
+import com.zhh.comet.Message;
+import com.zhh.httpclient.NettyHttpClient;
+
+public class PushServerHandler  extends SimpleChannelUpstreamHandler {
 
 	 private static final InternalLogger logger =
 		        InternalLoggerFactory.getInstance(HttpStaticFileServerHandler.class);
@@ -69,10 +72,8 @@ public class CometServerHandler  extends SimpleChannelUpstreamHandler {
 		    public static final String HTTP_DATE_GMT_TIMEZONE = "GMT";
 		    public static final int HTTP_CACHE_SECONDS = 60;
 		    
-		    public static Map<String,Channel> allUsers = new ConcurrentHashMap<String,Channel>();
-		    
-		    public final  static BlockingQueue<Message> msgQueue = new LinkedBlockingQueue<Message>();
-		    
+		    //public static Map<String,Channel> allUsers = new ConcurrentHashMap<String,Channel>();
+		    public static BlockingQueue<Channel> users = new LinkedBlockingQueue<Channel>();
 		    public static Thread sender;
 		    
 		    static{
@@ -83,7 +84,7 @@ public class CometServerHandler  extends SimpleChannelUpstreamHandler {
 		    }
 		    
 		    
-		    public CometServerHandler(){
+		    public PushServerHandler(){
 		    	
 //		    	MessageSender sender = new MessageSender();
 //		    	new Thread(sender).start();
@@ -103,73 +104,100 @@ public class CometServerHandler  extends SimpleChannelUpstreamHandler {
 		        	return;
 		        }
 		        
-		        if(uri.startsWith("/join")){
-		        	join(request,ctx,e);
-		        }
-		        
-		        if(uri.startsWith("/chat")){
-		        	chat(request,ctx,e);
-		        }
-		        
 		        if(uri.startsWith("/dingyue")){
 		        	
 		        }
 		        
+		        if(uri.startsWith("/pushStock")){
+		        	
+		        	pushStock(request,ctx,e);
+		        }
 		        
-////		        if(uri.startsWith("/send")){
-////		        	send(request,ctx,e);
-////		        }
-//		       
-//		        HttpResponse response = new DefaultHttpResponse(HTTP_1_1, OK);
-//		        if (isKeepAlive(request)) {
-//		            response.setHeader(CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
-//		        }
-//		        response.setHeader("Transfer-Encoding", "chunked");
-//		        
-//		        Channel ch = e.getChannel();
-//                ChannelFuture writeFuture = ch.write(response);
-//                
-//                String content  = "Hello Comet Server!";
-//		        ChannelBuffer buffer = ChannelBuffers.wrappedBuffer(content.getBytes()).slice();
-//		        
-//		        HttpChunk chunk = new DefaultHttpChunk(buffer);
-//		        HttpChunk  chunkTrailer = new DefaultHttpChunkTrailer();
-//		        ch.write(chunk);
-//		        ch.write(chunkTrailer);
-//		      
-//		        // Decide whether to close the connection or not.
-//		        if (!isKeepAlive(request)) {
-//		            // Close the connection when the whole content is written out.
-//		            writeFuture.addListener(ChannelFutureListener.CLOSE);
-//		        }
+
+		    }
+		    
+		    public void pushStock(HttpRequest request,ChannelHandlerContext ctx, MessageEvent e){
+		    	
+		    	Channel ch = e.getChannel();
+		    	HttpResponse response = new DefaultHttpResponse(HTTP_1_1, OK);
+			    response.setHeader(CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
+			    response.setHeader("Transfer-Encoding", "chunked");
+			    response.setHeader("Content-Type", "text/html; charset=utf-8");
+			    response.setHeader("Server", "Netty Comet 1.0");
+			    ch.write(response);
+		    	try {
+		    		System.out.println("wanted to add a channel"  + ch);
+					users.put(ch);
+					System.out.println("added a channel"  + ch);
+				} catch (InterruptedException e1) {
+					e1.printStackTrace();
+				}
 		    }
 		    
 		    
 		    private static class MessageSender implements Runnable {
 
+		    	private NettyHttpClient client;
+		    	
+		    	
+		    	public MessageSender(){
+		    		client = new NettyHttpClient();
+		    	}
 				public void run() {
+					int count = 0;
+					int step = 3;
 					
-				    Message message = null;
 				    try{
-				    	while((message = msgQueue.take()) != null){
+				    	while(true){
 					    	
-				    		 Set<Map.Entry<String,Channel>> channels = allUsers.entrySet();
-				    		 Iterator<Map.Entry<String,Channel>> iter = channels.iterator();
+				    		HttpResponse response = client.get("hq.sinajs.cn",80,"/list=sh600166");
+				    		if(response == null)
+				    			continue;
+				    		count++;
+				    		String content = new String(response.getContent().array());
+				    		String[] items = content.split(","); 
+				    		if(items == null || items.length < 4){
+				    			continue;
+				    		}
+				    		Random rand = new Random();
+				    		Float price = new Float(items[3]);
+//				    		if(count % step == 0){
+//				    			price -= rand.nextFloat();
+//				    			step++;
+//				    			if(step == 7){
+//				    				step =3;
+//				    			}
+//				    		}else{
+//				    			price  += rand.nextFloat();
+//				    		}
+				    		String c = null;
+				    		if(count == 0){
+				    			c = price + "";
+				    		}else{
+				    			c = ";" + price;
+				    		}
+				    		System.out.println("channel size:"  + users.size());
+				            Iterator<Channel> iter = users.iterator();
 				    		 while(iter.hasNext()){
-				    			 Map.Entry<String, Channel> temp = iter.next();
-				    			    final   Channel ch = temp.getValue();
+				    			    final   Channel ch = iter.next();
 				    			    if(!ch.isConnected()){
-				    			    	System.out.println("channel for "  + temp.getKey()  + "  closed");
+				    			    	System.out.println("channel for "  + ch  + "  closed");
 				    			    	iter.remove();
 				    			    	continue;
 				    			    }
-				    			   ChannelFuture future =  ch.write(wrapMessage(message));
+				    			   ChannelFuture future =  ch.write(wrapMessage(c));
 				    			   future.addListener(new ChannelFutureListener() {
 									public void operationComplete(ChannelFuture future) throws Exception {
-										System.out.println("send complete" );
+										//System.out.println("send complete" );
 									}
 								});
 				    	   // 
+				    		 }
+				    		 try{
+				    			 System.out.println("Thread sleep");
+				    			 Thread.sleep(2000);
+				    		 }catch(Exception e){
+				    			 
 				    		 }
 					    	
 					    }
@@ -180,9 +208,8 @@ public class CometServerHandler  extends SimpleChannelUpstreamHandler {
 				    }
 				}
 				
-				private HttpChunk wrapMessage(Message message){
+				private HttpChunk wrapMessage(String content){
 				
-					String content = message.toString();
 					ChannelBuffer buffer = null;
 					try {
 						buffer = ChannelBuffers.wrappedBuffer(content.getBytes("UTF-8"));
@@ -241,79 +268,12 @@ public class CometServerHandler  extends SimpleChannelUpstreamHandler {
 		    
 		    public static void main(String[] args){
 		    	
-		    	Map<String,String> parameter = handleParameter("/join?name=zhang&ab=cd&content=join");
-		    	System.out.println(parameter.get("ab"));
+		        String content = "var hq_str_sh601006=\"大秦铁路,6.75,6.77,6.89,7.08,6.75,6.89,6.90,46104099,319057641,110490,6.89,454286,6.88," +
+		        		"615011,6.87,326836,6.86,218900,6.85,219989,6.90,161826,6.91,485455,6.92,507423,6.93,80300,6.94,2013-01-10,15:03:07,00\";";
+		        String[] item = content.split(",");
+		        System.out.println(item[2]);
 		    }
 		    
-		    private void chat(HttpRequest request,ChannelHandlerContext ctx,MessageEvent e){
-		    	
-		    	
-		    	Message message = new Message();
-		    	String uri = request.getUri();
-		    	Map<String,String> parameter = handleParameter(uri);
-		    	String content = parameter.get("content");
-		    	String name = parameter.get("name");
-		    	message.setType("chat");
-	    		message.setBody(name  + " 说: "  + content);
-	    		msgQueue.offer(message);
-	    		Channel ch = e.getChannel();
-		    	HttpResponse response = new DefaultHttpResponse(HTTP_1_1, OK);
-			  //  response.setHeader(CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
-			    response.setHeader("Transfer-Encoding", "chunked");
-			    response.setHeader("Content-Type", "text/html; charset=utf-8");
-			    response.setHeader("Server", "Netty Comet 1.0");
-			    ch.write(response);
-		        String c = "ok";
-			    ChannelBuffer buffer = ChannelBuffers.wrappedBuffer(c.getBytes());
-			    HttpChunk chunk = new DefaultHttpChunk(buffer);
-			    ch.write(chunk);
-			    ChannelFuture writeFuture = ch.write(new DefaultHttpChunkTrailer());
-			    writeFuture.addListener(ChannelFutureListener.CLOSE);
-		    }
-		    
-		    @Override
-			public void channelClosed(ChannelHandlerContext ctx,
-					ChannelStateEvent e) throws Exception {
-				
-				super.channelClosed(ctx, e);
-				Channel ch = e.getChannel();
-				if(allUsers.containsValue(ch)){
-					String name = (String)ch.getAttachment();
-					Message leavelMsg = new Message();
-			    	leavelMsg.setBody( name + " 离开了，欢迎再来");
-			    	leavelMsg.setType("chat");
-			    	msgQueue.offer(leavelMsg);
-					System.out.println("channel" + ch + "closed");
-				}
-			}
-
-			private void join(HttpRequest request,ChannelHandlerContext ctx, MessageEvent e){
-		    	
-		    	Message message = new Message();
-		    	String uri = request.getUri();
-		    	Map<String,String> parameter = handleParameter(uri);
-		    	String content = parameter.get("content");
-		    	String name = parameter.get("name");
-		    	if("join".equals(content)){
-		    		message.setType("join");
-		    		message.setBody(name + "  加入聊天中^-^");
-				    Channel ch = e.getChannel();
-		            allUsers.put(name, ch);
-		    	}else{
-		    		message.setType("chat");
-		    		message.setBody(name  + "  说: "  + content);
-		    	}
-		    	Channel ch = e.getChannel();
-		    	ch.setAttachment(name);
-		    	HttpResponse response = new DefaultHttpResponse(HTTP_1_1, OK);
-			    response.setHeader(CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
-			    response.setHeader("Transfer-Encoding", "chunked");
-			    response.setHeader("Content-Type", "text/html; charset=utf-8");
-			    response.setHeader("Server", "Netty Comet 1.0");
-			    ch.write(response);
-		    	msgQueue.offer(message);
-		    }
-
 		    @Override
 		    public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e)
 		            throws Exception {

@@ -1,4 +1,4 @@
-package com.zhh.comet;
+package com.zhh.push;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.socket.nio.NioServerSocketChannelFactory;
@@ -6,11 +6,13 @@ import io.netty.channel.socket.nio.NioServerSocketChannelFactory;
 import java.net.InetSocketAddress;
 import java.util.concurrent.Executors;
 
-public class CometServer {
+import com.zhh.comet.HttpStaticFileServerPipelineFactory;
+
+public class PushServer {
 
 	 private final int port;
 
-	    public CometServer(int port) {
+	    public PushServer(int port) {
 	        this.port = port;
 	    }
 
@@ -21,7 +23,7 @@ public class CometServer {
 	                        Executors.newCachedThreadPool()));
 
 	        // Set up the event pipeline factory.
-	        bootstrap.setPipelineFactory(new HttpStaticFileServerPipelineFactory());
+	        bootstrap.setPipelineFactory(new PushServerPipelineFactory());
 
 	        // Bind and start to accept incoming connections.
 	        bootstrap.bind(new InetSocketAddress(port));
@@ -36,6 +38,6 @@ public class CometServer {
 	        } else {
 	            port = 8080;
 	        }
-	        new CometServer(port).run();
+	        new PushServer(port).run();
 	    }
 }
