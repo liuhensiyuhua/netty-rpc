@@ -1,0 +1,2 @@
+一个简单的netty rpc。通讯协议采用简单的定长协议，netty自带的object encoder/decoder java序列化协议。
+添加一个基于netty的comet streaming的聊天室例子。
